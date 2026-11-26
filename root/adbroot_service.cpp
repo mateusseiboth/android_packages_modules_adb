@@ -76,10 +76,14 @@ using ::android::base::SetProperty;
 using ::android::base::Trim;
 using ::android::base::WriteStringToFile;
 
-static inline bool isAutomotive(uid_t uid) {
+// With a headless system user (automotive, or a PC with a login screen) Settings runs as the
+// system app of the user signed in, not as AID_SYSTEM itself.
+static inline bool isSystemOfSignedInUser(uid_t uid) {
     appid_t appid = multiuser_get_app_id(uid);
+    if (appid != AID_SYSTEM) return false;
 
-    return appid == AID_SYSTEM && ::android::isAutomotive();
+    return ::android::base::GetBoolProperty("ro.fw.mu.headless_system_user", false) ||
+           ::android::isAutomotive();
 }
 
 AdbRootService::AdbRootService() : enabled_(false) {
@@ -101,7 +105,7 @@ void AdbRootService::Register() {
 
 ndk::ScopedAStatus AdbRootService::isSupported(bool* _aidl_return) {
     uid_t uid = AIBinder_getCallingUid();
-    if (uid != AID_SYSTEM && uid != AID_SHELL && !isAutomotive(uid)) {
+    if (uid != AID_SYSTEM && uid != AID_SHELL && !isSystemOfSignedInUser(uid)) {
         return SecurityException("Caller must be system or shell");
     }
 
@@ -112,7 +116,7 @@ ndk::ScopedAStatus AdbRootService::isSupported(bool* _aidl_return) {
 
 ndk::ScopedAStatus AdbRootService::setEnabled(bool enabled) {
     uid_t uid = AIBinder_getCallingUid();
-    if (uid != AID_SYSTEM && !isAutomotive(uid)) {
+    if (uid != AID_SYSTEM && !isSystemOfSignedInUser(uid)) {
         return SecurityException("Caller must be system");
     }
 
@@ -134,7 +138,7 @@ ndk::ScopedAStatus AdbRootService::setEnabled(bool enabled) {
 
 ndk::ScopedAStatus AdbRootService::getEnabled(bool* _aidl_return) {
     uid_t uid = AIBinder_getCallingUid();
-    if (uid != AID_SYSTEM && uid != AID_SHELL && !isAutomotive(uid)) {
+    if (uid != AID_SYSTEM && uid != AID_SHELL && !isSystemOfSignedInUser(uid)) {
         return SecurityException("Caller must be system or shell");
     }
 
